@@ -619,14 +619,29 @@ jobs:
       # Force New Deployment
       ####################################################
 
-      - name: Deploy Application
-
+      - name: Download Current Task Definition
         run: |
+          aws ecs describe-task-definition \
+             --task-definition infra-as-code-pipeline-dev-task \
+             --query taskDefinition \
+             > task-definition.json
 
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
-            --force-new-deployment
+      - name: Render ECS Task Definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ needs.docker-build.outputs.image-uri }}
+
+      - name: Deploy ECS Task Definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
 
       ####################################################
       # Wait Until ECS Service Stable
@@ -748,16 +763,30 @@ jobs:
       ####################################################
       # Force New Deployment
       ####################################################
+      
 
-      - name: Deploy Latest Image
-
+      - name: Download Current Task Definition
         run: |
+          aws ecs describe-task-definition \
+            --task-definition infra-as-code-pipeline-dev-task \
+            --query taskDefinition \
+            > task-definition.json
 
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
-            --force-new-deployment
+      - name: Render ECS Task Definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: ${{ env.CONTAINER_NAME }}
+        image: ${{ needs.docker-build.outputs.image-uri }}
 
+    - name: Deploy ECS Task Definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
       ####################################################
       # Wait Until Stable
       ####################################################
