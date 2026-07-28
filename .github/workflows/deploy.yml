@@ -1,5 +1,9 @@
 name: Infra as Code Pipeline
 
+##########################################################
+# TRIGGERS
+##########################################################
+
 on:
   pull_request:
     branches:
@@ -11,9 +15,17 @@ on:
       - main
       - staging
 
+##########################################################
+# PERMISSIONS
+##########################################################
+
 permissions:
   contents: read
   id-token: write
+
+##########################################################
+# GLOBAL ENVIRONMENT VARIABLES
+##########################################################
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -49,7 +61,6 @@ jobs:
       ####################################################
 
       - name: Checkout Repository
-
         uses: actions/checkout@v4
 
       ####################################################
@@ -57,9 +68,7 @@ jobs:
       ####################################################
 
       - name: Configure AWS Credentials
-
         uses: aws-actions/configure-aws-credentials@v4
-
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -70,18 +79,15 @@ jobs:
       ####################################################
 
       - name: Setup Terraform
-
         uses: hashicorp/setup-terraform@v3
-
         with:
           terraform_wrapper: false
 
       ####################################################
-      # Terraform Version
+      # Show Terraform Version
       ####################################################
 
       - name: Terraform Version
-
         run: terraform version
 
       ####################################################
@@ -89,15 +95,13 @@ jobs:
       ####################################################
 
       - name: Terraform Init
-
         run: terraform init
 
       ####################################################
       # Terraform Format Check
       ####################################################
 
-      - name: Terraform Format
-
+      - name: Terraform Format Check
         run: terraform fmt -check -recursive
 
       ####################################################
@@ -105,7 +109,6 @@ jobs:
       ####################################################
 
       - name: Terraform Validate
-
         run: terraform validate
 
       ####################################################
@@ -113,9 +116,7 @@ jobs:
       ####################################################
 
       - name: Upload Terraform Source
-
         uses: actions/upload-artifact@v4
-
         with:
           name: terraform-source
           path: terraform
@@ -139,11 +140,10 @@ jobs:
     steps:
 
       ####################################################
-      # Checkout
+      # Checkout Repository
       ####################################################
 
       - name: Checkout Repository
-
         uses: actions/checkout@v4
 
       ####################################################
@@ -151,31 +151,27 @@ jobs:
       ####################################################
 
       - name: Install TFLint
-
         uses: terraform-linters/setup-tflint@v4
 
       ####################################################
-      # Verify Version
+      # Verify TFLint Version
       ####################################################
 
-      - name: Check Version
-
+      - name: Check TFLint Version
         run: tflint --version
 
       ####################################################
-      # Initialize Rules
+      # Initialize TFLint Rules
       ####################################################
 
       - name: Initialize TFLint
-
         run: tflint --init
 
       ####################################################
-      # Execute TFLint
+      # Run TFLint
       ####################################################
 
       - name: Run TFLint
-
         run: tflint
 
       ####################################################
@@ -183,17 +179,13 @@ jobs:
       ####################################################
 
       - name: Upload Lint Report
-
         uses: actions/upload-artifact@v4
-
         with:
           name: terraform-lint
           path: terraform
 
 ##########################################################
-# PART B STARTS BELOW
-####################################################################################################################
-# DOCKER BUILD & PUSH
+# DOCKER BUILD & PUSH TO AMAZON ECR
 ##########################################################
 
   docker-build:
@@ -220,7 +212,6 @@ jobs:
       ####################################################
 
       - name: Checkout Repository
-
         uses: actions/checkout@v4
 
       ####################################################
@@ -228,9 +219,7 @@ jobs:
       ####################################################
 
       - name: Configure AWS Credentials
-
         uses: aws-actions/configure-aws-credentials@v4
-
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -241,9 +230,7 @@ jobs:
       ####################################################
 
       - name: Login to Amazon ECR
-
         id: login-ecr
-
         uses: aws-actions/amazon-ecr-login@v2
 
       ####################################################
@@ -251,7 +238,6 @@ jobs:
       ####################################################
 
       - name: Docker Version
-
         run: docker version
 
       ####################################################
@@ -259,9 +245,7 @@ jobs:
       ####################################################
 
       - name: Build Docker Image
-
         run: |
-
           docker build \
             -t $ECR_REPOSITORY:${{ github.sha }} \
             .
@@ -271,9 +255,7 @@ jobs:
       ####################################################
 
       - name: Tag Docker Image
-
         run: |
-
           docker tag \
             $ECR_REPOSITORY:${{ github.sha }} \
             ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
@@ -283,20 +265,16 @@ jobs:
       ####################################################
 
       - name: Push Docker Image
-
         run: |
-
           docker push \
             ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
 
       ####################################################
-      # Verify Image Exists in ECR
+      # Verify Image Exists in Amazon ECR
       ####################################################
 
-      - name: Verify Image
-
+      - name: Verify Image in ECR
         run: |
-
           aws ecr describe-images \
             --repository-name $ECR_REPOSITORY \
             --image-ids imageTag=${{ github.sha }}
@@ -306,15 +284,10 @@ jobs:
       ####################################################
 
       - name: Export Image URI
-
         id: export-image
-
         run: |
-
           IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}"
-
           echo "image=$IMAGE_URI" >> "$GITHUB_OUTPUT"
-
           echo "Built Image: $IMAGE_URI"
 
       ####################################################
@@ -322,9 +295,7 @@ jobs:
       ####################################################
 
       - name: Save Image URI
-
         run: |
-
           echo "${{ steps.export-image.outputs.image }}" > image.txt
 
       ####################################################
@@ -332,12 +303,9 @@ jobs:
       ####################################################
 
       - name: Upload Image Artifact
-
         uses: actions/upload-artifact@v4
-
         with:
           name: docker-image
-
           path: image.txt
 
       ####################################################
@@ -345,9 +313,7 @@ jobs:
       ####################################################
 
       - name: Download Terraform Source
-
         uses: actions/download-artifact@v4
-
         with:
           name: terraform-source
 
@@ -356,202 +322,17 @@ jobs:
       ####################################################
 
       - name: Build Summary
-
         run: |
-
           echo "========================================="
-          echo "Docker Build Completed"
+          echo "Docker Build Completed Successfully"
           echo "Repository : $ECR_REPOSITORY"
           echo "Image Tag  : ${{ github.sha }}"
           echo "Region     : $AWS_REGION"
+          echo "Image URI  : ${{ steps.export-image.outputs.image }}"
           echo "========================================="
 
 ##########################################################
-# PART C STARTS BELOW
-#########################################################
-
-
-          ##########################################################
-# DOCKER BUILD & PUSH
-##########################################################
-
-  docker-build:
-
-    name: Build & Push Docker Image
-
-    needs:
-      - terraform-validation
-      - terraform-lint
-
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: app
-
-    outputs:
-      image-uri: ${{ steps.export-image.outputs.image }}
-
-    steps:
-
-      ####################################################
-      # Checkout Repository
-      ####################################################
-
-      - name: Checkout Repository
-
-        uses: actions/checkout@v4
-
-      ####################################################
-      # Configure AWS Credentials
-      ####################################################
-
-      - name: Configure AWS Credentials
-
-        uses: aws-actions/configure-aws-credentials@v4
-
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      ####################################################
-      # Login to Amazon ECR
-      ####################################################
-
-      - name: Login to Amazon ECR
-
-        id: login-ecr
-
-        uses: aws-actions/amazon-ecr-login@v2
-
-      ####################################################
-      # Show Docker Version
-      ####################################################
-
-      - name: Docker Version
-
-        run: docker version
-
-      ####################################################
-      # Build Docker Image
-      ####################################################
-
-      - name: Build Docker Image
-
-        run: |
-
-          docker build \
-            -t $ECR_REPOSITORY:${{ github.sha }} \
-            .
-
-      ####################################################
-      # Tag Docker Image
-      ####################################################
-
-      - name: Tag Docker Image
-
-        run: |
-
-          docker tag \
-            $ECR_REPOSITORY:${{ github.sha }} \
-            ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
-
-      ####################################################
-      # Push Docker Image
-      ####################################################
-
-      - name: Push Docker Image
-
-        run: |
-
-          docker push \
-            ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
-
-      ####################################################
-      # Verify Image Exists in ECR
-      ####################################################
-
-      - name: Verify Image
-
-        run: |
-
-          aws ecr describe-images \
-            --repository-name $ECR_REPOSITORY \
-            --image-ids imageTag=${{ github.sha }}
-
-      ####################################################
-      # Export Image URI
-      ####################################################
-
-      - name: Export Image URI
-
-        id: export-image
-
-        run: |
-
-          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}"
-
-          echo "image=$IMAGE_URI" >> "$GITHUB_OUTPUT"
-
-          echo "Built Image: $IMAGE_URI"
-
-      ####################################################
-      # Save Image URI
-      ####################################################
-
-      - name: Save Image URI
-
-        run: |
-
-          echo "${{ steps.export-image.outputs.image }}" > image.txt
-
-      ####################################################
-      # Upload Image Artifact
-      ####################################################
-
-      - name: Upload Image Artifact
-
-        uses: actions/upload-artifact@v4
-
-        with:
-          name: docker-image
-
-          path: image.txt
-
-      ####################################################
-      # Download Terraform Artifact
-      ####################################################
-
-      - name: Download Terraform Source
-
-        uses: actions/download-artifact@v4
-
-        with:
-          name: terraform-source
-
-      ####################################################
-      # Build Summary
-      ####################################################
-
-      - name: Build Summary
-
-        run: |
-
-          echo "========================================="
-          echo "Docker Build Completed"
-          echo "Repository : $ECR_REPOSITORY"
-          echo "Image Tag  : ${{ github.sha }}"
-          echo "Region     : $AWS_REGION"
-          echo "========================================="
-
-##########################################################
-# PART C STARTS BELOW
-##########################################################
-
-
-##########################################################
-# ECS STAGING DEPLOYMENT
+# STAGING DEPLOYMENT
 ##########################################################
 
   deploy-staging:
@@ -575,7 +356,6 @@ jobs:
       ####################################################
 
       - name: Checkout Repository
-
         uses: actions/checkout@v4
 
       ####################################################
@@ -583,22 +363,18 @@ jobs:
       ####################################################
 
       - name: Configure AWS Credentials
-
         uses: aws-actions/configure-aws-credentials@v4
-
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       ####################################################
-      # Save Previous Task Definition
+      # Save Current Task Definition
       ####################################################
 
-      - name: Save Previous Task Definition
-
+      - name: Save Current Task Definition
         run: |
-
           aws ecs describe-services \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE \
@@ -606,25 +382,26 @@ jobs:
             --output text > previous-task.txt
 
       ####################################################
-      # Show Previous Task Definition
+      # Display Previous Task Definition
       ####################################################
 
-      - name: Previous Task Definition
-
-        run: |
-
-          cat previous-task.txt
+      - name: Show Previous Task Definition
+        run: cat previous-task.txt
 
       ####################################################
-      # Force New Deployment
+      # Download Current ECS Task Definition
       ####################################################
 
       - name: Download Current Task Definition
         run: |
           aws ecs describe-task-definition \
-             --task-definition infra-as-code-pipeline-dev-task \
-             --query taskDefinition \
-             > task-definition.json
+            --task-definition infra-as-code-pipeline-dev-task \
+            --query taskDefinition \
+            > task-definition.json
+
+      ####################################################
+      # Render Updated Task Definition
+      ####################################################
 
       - name: Render ECS Task Definition
         id: task-def
@@ -634,6 +411,10 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ needs.docker-build.outputs.image-uri }}
 
+      ####################################################
+      # Deploy Updated Task Definition
+      ####################################################
+
       - name: Deploy ECS Task Definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
@@ -642,27 +423,22 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
-
       ####################################################
-      # Wait Until ECS Service Stable
+      # Wait Until ECS Service Is Stable
       ####################################################
 
       - name: Wait for Stable Service
-
         run: |
-
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
 
       ####################################################
-      # Verify Running Tasks
+      # Verify Running Service
       ####################################################
 
-      - name: Verify Running Tasks
-
+      - name: Verify ECS Service
         run: |
-
           aws ecs describe-services \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
@@ -672,12 +448,9 @@ jobs:
       ####################################################
 
       - name: Upload Previous Task Definition
-
         uses: actions/upload-artifact@v4
-
         with:
           name: previous-task
-
           path: previous-task.txt
 
       ####################################################
@@ -685,19 +458,14 @@ jobs:
       ####################################################
 
       - name: Deployment Summary
-
         run: |
-
           echo "===================================="
-          echo "Staging Deployment Completed"
+          echo "Staging Deployment Successful"
           echo "Cluster : $ECS_CLUSTER"
           echo "Service : $ECS_SERVICE"
+          echo "Image   : ${{ needs.docker-build.outputs.image-uri }}"
           echo "Region  : $AWS_REGION"
           echo "===================================="
-
-##########################################################
-# PART D STARTS BELOW
-##########################################################
 
 ##########################################################
 # PRODUCTION DEPLOYMENT
@@ -714,12 +482,6 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    ####################################################
-    # GitHub Environment
-    # Configure "production" environment in GitHub
-    # with Required Reviewers enabled.
-    ####################################################
-
     environment:
       name: production
 
@@ -730,7 +492,6 @@ jobs:
       ####################################################
 
       - name: Checkout Repository
-
         uses: actions/checkout@v4
 
       ####################################################
@@ -738,9 +499,7 @@ jobs:
       ####################################################
 
       - name: Configure AWS Credentials
-
         uses: aws-actions/configure-aws-credentials@v4
-
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -751,9 +510,7 @@ jobs:
       ####################################################
 
       - name: Save Current Task Definition
-
         run: |
-
           aws ecs describe-services \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE \
@@ -761,9 +518,8 @@ jobs:
             --output text > previous-task.txt
 
       ####################################################
-      # Force New Deployment
+      # Download Current ECS Task Definition
       ####################################################
-      
 
       - name: Download Current Task Definition
         run: |
@@ -772,46 +528,62 @@ jobs:
             --query taskDefinition \
             > task-definition.json
 
+      ####################################################
+      # Render New Task Definition
+      ####################################################
+
       - name: Render ECS Task Definition
-      id: task-def
-      uses: aws-actions/amazon-ecs-render-task-definition@v1
-      with:
-        task-definition: task-definition.json
-        container-name: ${{ env.CONTAINER_NAME }}
-        image: ${{ needs.docker-build.outputs.image-uri }}
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ needs.docker-build.outputs.image-uri }}
 
-    - name: Deploy ECS Task Definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-      with:
-        task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: ${{ env.ECS_SERVICE }}
-        cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: true
       ####################################################
-      # Wait Until Stable
+      # Deploy Updated Task Definition
       ####################################################
 
-      - name: Wait For ECS Stability
+      - name: Deploy ECS Task Definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
 
+      ####################################################
+      # Wait Until ECS Service Is Stable
+      ####################################################
+
+      - name: Wait for Stable Service
         run: |
-
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
 
       ####################################################
-      # Health Check
+      # Verify ECS Service
       ####################################################
 
-      - name: Health Check
+      - name: Verify ECS Service
+        run: |
+          aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE
 
+      ####################################################
+      # Application Health Check
+      ####################################################
+
+      - name: Application Health Check
         run: |
 
           ALB_URL="http://infra-as-code-pipeline-dev-alb-1133611598.ap-south-1.elb.amazonaws.com/health"
 
           SUCCESS=0
 
-          echo "Waiting for application..."
+          echo "Waiting for application to become healthy..."
 
           for i in {1..10}; do
 
@@ -833,173 +605,121 @@ jobs:
             exit 1
           fi
 
-          echo "Application Healthy."
+          echo "Application is healthy."
 
       ####################################################
       # Deployment Summary
       ####################################################
 
       - name: Deployment Summary
-
         if: success()
-
         run: |
-
-          echo "=================================="
+          echo "======================================"
           echo "Production Deployment Successful"
-          echo "Cluster : $ECS_CLUSTER"
-          echo "Service : $ECS_SERVICE"
-          echo "Region  : $AWS_REGION"
-          echo "=================================="
+          echo "Cluster    : $ECS_CLUSTER"
+          echo "Service    : $ECS_SERVICE"
+          echo "Repository : $ECR_REPOSITORY"
+          echo "Image      : ${{ needs.docker-build.outputs.image-uri }}"
+          echo "Region     : $AWS_REGION"
+          echo "Commit SHA : ${{ github.sha }}"
+          echo "======================================"
 
 ##########################################################
-# HEALTH CHECK COMPLETE
-# PART E STARTS BELOW
-##########################################################
-
-##########################################################
-# AUTOMATIC ROLLBACK
+# ROLLBACK, CLEANUP & SUMMARY
 ##########################################################
 
       ####################################################
-      # Rollback Deployment
+      # Automatic Rollback
       ####################################################
 
       - name: Rollback Deployment
-
         if: failure()
-
         run: |
 
           echo "Deployment failed."
-
           echo "Starting rollback..."
 
           PREVIOUS_TASK=$(cat previous-task.txt)
 
           echo "Previous Task Definition:"
-
-          echo $PREVIOUS_TASK
+          echo "$PREVIOUS_TASK"
 
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE \
-            --task-definition $PREVIOUS_TASK
+            --task-definition "$PREVIOUS_TASK"
 
       ####################################################
-      # Wait for Rollback
+      # Wait For Rollback
       ####################################################
 
       - name: Wait for Rollback
-
         if: failure()
-
         run: |
 
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
 
-##########################################################
-# CLEANUP
-##########################################################
+          echo "Rollback completed successfully."
 
       ####################################################
-      # Remove Temporary Files
+      # Cleanup Workspace
       ####################################################
 
       - name: Cleanup Workspace
-
         if: always()
-
         run: |
 
           rm -f previous-task.txt
-
+          rm -f task-definition.json
           rm -f image.txt
 
           docker image prune -af || true
-
-##########################################################
-# JOB SUMMARY
-##########################################################
 
       ####################################################
       # Success Summary
       ####################################################
 
       - name: Success Summary
-
         if: success()
-
         run: |
 
           echo "=========================================="
-
-          echo "Deployment Successful"
-
+          echo "Production Deployment Successful"
           echo ""
-
           echo "Project        : Infra as Code Pipeline"
-
           echo "Environment    : Production"
-
           echo "AWS Region     : $AWS_REGION"
-
           echo "Cluster        : $ECS_CLUSTER"
-
           echo "Service        : $ECS_SERVICE"
-
           echo "Repository     : $ECR_REPOSITORY"
-
+          echo "Image          : ${{ needs.docker-build.outputs.image-uri }}"
           echo "Commit SHA     : ${{ github.sha }}"
-
+          echo "Workflow       : GitHub Actions"
           echo "=========================================="
-
-##########################################################
-# FAILURE SUMMARY
-##########################################################
 
       ####################################################
       # Failure Summary
       ####################################################
 
       - name: Failure Summary
-
         if: failure()
-
         run: |
 
           echo "=========================================="
-
-          echo "Deployment Failed"
-
+          echo "Production Deployment Failed"
           echo ""
-
-          echo "Rollback Executed"
-
+          echo "Rollback Executed Successfully"
           echo ""
-
-          echo "Cluster     : $ECS_CLUSTER"
-
-          echo "Service     : $ECS_SERVICE"
-
-          echo "Repository  : $ECR_REPOSITORY"
-
-          echo "Commit SHA  : ${{ github.sha }}"
-
+          echo "Cluster        : $ECS_CLUSTER"
+          echo "Service        : $ECS_SERVICE"
+          echo "Repository     : $ECR_REPOSITORY"
+          echo "Commit SHA     : ${{ github.sha }}"
           echo ""
-
-          echo "Please check ECS Events"
-
-          echo "CloudWatch Logs"
-
-          echo "Target Group Health"
-
-          echo "GitHub Actions Logs"
-
+          echo "Check the following:"
+          echo " - GitHub Actions Logs"
+          echo " - Amazon ECS Events"
+          echo " - CloudWatch Logs"
+          echo " - Target Group Health"
           echo "=========================================="
-
-##########################################################
-# END OF FILE
-##########################################################
