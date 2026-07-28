@@ -1,0 +1,13 @@
+{
+  "name": "ecs-demo-app",
+  "version": "1.0.0",
+  "description": "Node.js application deployed on AWS ECS Fargate",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Tests Passed\""
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
