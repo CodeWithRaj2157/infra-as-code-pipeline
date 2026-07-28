@@ -183,4 +183,169 @@ jobs:
 
 ############################################################
 # PART B STARTS HERE
+###########################################################
+
+
 ############################################################
+# DOCKER BUILD & PUSH
+############################################################
+
+  docker-build:
+
+    name: Build and Push Docker Image
+
+    needs:
+      - terraform-validation
+      - terraform-lint
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: app
+
+    outputs:
+      image-uri: ${{ steps.image.outputs.image }}
+
+    steps:
+
+      ######################################################
+      # Checkout Repository
+      ######################################################
+
+      - name: Checkout Repository
+
+        uses: actions/checkout@v4
+
+      ######################################################
+      # Configure AWS Credentials
+      ######################################################
+
+      - name: Configure AWS Credentials
+
+        uses: aws-actions/configure-aws-credentials@v4
+
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      ######################################################
+      # Login to Amazon ECR
+      ######################################################
+
+      - name: Login to Amazon ECR
+
+        id: login-ecr
+
+        uses: aws-actions/amazon-ecr-login@v2
+
+      ######################################################
+      # Build Docker Image
+      ######################################################
+
+      - name: Build Docker Image
+
+        run: |
+
+          docker build \
+            -t $ECR_REPOSITORY:${{ github.sha }} \
+            .
+
+      ######################################################
+      # Tag Docker Image
+      ######################################################
+
+      - name: Tag Docker Image
+
+        run: |
+
+          docker tag \
+          $ECR_REPOSITORY:${{ github.sha }} \
+          ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
+
+      ######################################################
+      # Push Docker Image
+      ######################################################
+
+      - name: Push Docker Image
+
+        run: |
+
+          docker push \
+          ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
+
+      ######################################################
+      # Save Image URI
+      ######################################################
+
+      - name: Export Image URI
+
+        id: image
+
+        run: |
+
+          IMAGE=${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
+
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+          echo "Docker Image:"
+          echo "$IMAGE"
+
+      ######################################################
+      # Verify Image Exists
+      ######################################################
+
+      - name: Verify Image in ECR
+
+        run: |
+
+          aws ecr describe-images \
+            --repository-name $ECR_REPOSITORY \
+            --image-ids imageTag=${{ github.sha }}
+
+      ######################################################
+      # Upload Build Information
+      ######################################################
+
+      - name: Upload Image Metadata
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: docker-image
+
+          path: |
+            app/Dockerfile
+
+      ######################################################
+      # Download Terraform Artifact
+      ######################################################
+
+      - name: Download Terraform Artifact
+
+        uses: actions/download-artifact@v4
+
+        with:
+          name: terraform-source
+
+      ######################################################
+      # Display Summary
+      ######################################################
+
+      - name: Build Summary
+
+        run: |
+
+          echo "Docker image successfully pushed."
+
+          echo "Repository : $ECR_REPOSITORY"
+
+          echo "Commit     : ${{ github.sha }}"
+
+          echo "AWS Region : $AWS_REGION"
+
+############################################################
+# PART C STARTS HERE
+############################################################
+#
