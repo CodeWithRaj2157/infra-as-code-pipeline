@@ -1,7 +1,11 @@
-rule "terraform_documented_variables" {
-  enabled = false
+config {
+  force = false
 }
 
-rule "terraform_documented_outputs" {
+plugin "terraform" {
+  enabled = true
+}
+
+rule "terraform_unused_declarations" {
   enabled = false
 }

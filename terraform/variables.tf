@@ -1,145 +1,169 @@
 variable "project_name" {
-  description = "Project Name"
-  type        = string
-  default     = "infra-as-code-pipeline"
+
+  description = "Name of the project"
+
+  type = string
+
 }
+
 
 variable "environment" {
-  description = "Environment Name"
-  type        = string
+
+  description = "Deployment environment name"
+
+  type = string
+
 }
+
 
 variable "aws_region" {
-  description = "AWS Region"
-  type        = string
-  default     = "ap-south-1"
+
+  description = "AWS region where resources will be created"
+
+  type = string
+
 }
+
 
 variable "vpc_cidr" {
+
+  description = "CIDR block for the VPC"
+
   type = string
+
 }
+
 
 variable "public_subnets" {
+
+  description = "CIDR blocks for public subnets"
+
   type = list(string)
+
 }
+
 
 variable "private_subnets" {
+
+  description = "CIDR blocks for private subnets"
+
   type = list(string)
+
 }
+
 
 variable "container_port" {
-  type    = number
-  default = 3000
+
+  description = "Port exposed by the application container"
+
+  type = number
+
 }
+
 
 variable "desired_count" {
-  type    = number
-  default = 2
+
+  description = "Desired number of ECS service tasks"
+
+  type = number
+
 }
+
 
 variable "max_capacity" {
-  type    = number
-  default = 6
+
+  description = "Maximum ECS service task capacity"
+
+  type = number
+
 }
+
 
 variable "min_capacity" {
-  type    = number
-  default = 2
+
+  description = "Minimum ECS service task capacity"
+
+  type = number
+
 }
 
-############################################
-# ECS Configuration
-############################################
 
 variable "container_name" {
-  description = "Container Name"
-  type        = string
-  default     = "ecs-demo-app"
+
+  description = "Name of the ECS container"
+
+  type = string
+
 }
+
 
 variable "task_cpu" {
-  description = "CPU units for ECS task"
-  type        = number
-  default     = 256
+
+  description = "CPU units allocated to ECS task"
+
+  type = number
+
 }
+
 
 variable "task_memory" {
-  description = "Memory for ECS task"
-  type        = number
-  default     = 512
+
+  description = "Memory allocated to ECS task"
+
+  type = number
+
 }
+
 
 variable "image_tag" {
+
   description = "Docker image tag"
-  type        = string
-  default     = "latest"
+
+  type = string
+
 }
 
-############################################
-# ALB Health Check
-############################################
 
 variable "health_check_path" {
-  description = "Health check endpoint"
-  type        = string
-  default     = "/health"
+
+  description = "Health check endpoint path"
+
+  type = string
+
 }
 
-variable "health_check_interval" {
-  description = "Health check interval"
-  type        = number
-  default     = 30
-}
-
-variable "health_check_timeout" {
-  description = "Health check timeout"
-  type        = number
-  default     = 5
-}
-
-variable "healthy_threshold" {
-  description = "Healthy threshold"
-  type        = number
-  default     = 2
-}
-
-variable "unhealthy_threshold" {
-  description = "Unhealthy threshold"
-  type        = number
-  default     = 2
-}
-
-############################################
-# CloudWatch
-############################################
 
 variable "log_retention_days" {
-  description = "CloudWatch log retention"
-  type        = number
-  default     = 7
+
+  description = "Number of days to retain CloudWatch logs"
+
+  type = number
+
 }
 
-############################################
-# Auto Scaling
-############################################
 
 variable "cpu_target" {
-  description = "CPU utilization target"
-  type        = number
-  default     = 70
+
+  description = "CPU utilization target percentage for autoscaling"
+
+  type = number
+
 }
+
 
 variable "memory_target" {
-  description = "Memory utilization target"
-  type        = number
-  default     = 75
-}
 
+  description = "Memory utilization target percentage for autoscaling"
+
+  type = number
+
+}
 
 
 variable "alarm_email" {
-  description = "Email for CloudWatch notifications"
-  type        = string
+
+  description = "Email address for CloudWatch alarm notifications"
+
+  type = string
+
 }
-
-
