@@ -778,7 +778,7 @@ jobs:
 
         run: |
 
-          ALB_URL="http://YOUR-ALB-DNS/health"
+          ALB_URL="http://infra-as-code-pipeline-dev-alb-1133611598.ap-south-1.elb.amazonaws.com/health"
 
           SUCCESS=0
 
