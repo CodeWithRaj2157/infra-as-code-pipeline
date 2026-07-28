@@ -19,7 +19,7 @@ resource "aws_ecs_cluster" "this" {
 
   setting {
 
-    name  = "containerInsights"
+    name = "containerInsights"
 
     value = "enabled"
 
@@ -74,15 +74,15 @@ resource "aws_ecs_task_definition" "this" {
 
 resource "aws_ecs_service" "this" {
 
-  name            = "${var.cluster_name}-service"
+  name = "${var.cluster_name}-service"
 
-  cluster         = aws_ecs_cluster.this.id
+  cluster = aws_ecs_cluster.this.id
 
   task_definition = aws_ecs_task_definition.this.arn
 
-  desired_count   = var.desired_count
+  desired_count = var.desired_count
 
-  launch_type     = "FARGATE"
+  launch_type = "FARGATE"
 
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200

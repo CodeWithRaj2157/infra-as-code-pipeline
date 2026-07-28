@@ -1,22 +1,22 @@
 module "networking" {
   source = "./modules/networking"
 
-  project_name       = var.project_name
-  environment        = var.environment
-  vpc_cidr           = var.vpc_cidr
-  public_subnets     = var.public_subnets
-  private_subnets    = var.private_subnets
+  project_name    = var.project_name
+  environment     = var.environment
+  vpc_cidr        = var.vpc_cidr
+  public_subnets  = var.public_subnets
+  private_subnets = var.private_subnets
 }
 
 module "security" {
 
   source = "./modules/security"
 
-  vpc_id       = module.networking.vpc_id
+  vpc_id = module.networking.vpc_id
 
   project_name = var.project_name
 
-  environment  = var.environment
+  environment = var.environment
 
 }
 
