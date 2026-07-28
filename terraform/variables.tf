@@ -136,3 +136,10 @@ variable "memory_target" {
 }
 
 
+
+variable "alarm_email" {
+  description = "Email for CloudWatch notifications"
+  type        = string
+}
+
+

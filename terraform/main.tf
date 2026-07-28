@@ -32,7 +32,6 @@ module "ecr" {
 
 }
 
-
 module "ecs" {
 
   source = "./modules/ecs"
@@ -60,6 +59,14 @@ module "ecs" {
   image_tag = var.image_tag
 
   log_retention_days = var.log_retention_days
+
+  subnet_ids = module.networking.private_subnet_ids
+
+  security_group_id = module.security.ecs_security_group
+
+  target_group_arn = module.alb.target_group_arn
+
+  desired_count = var.desired_count
 
 }
 
@@ -91,9 +98,19 @@ module "monitoring" {
 
   source = "./modules/monitoring"
 
-  cluster_name = "${var.project_name}-${var.environment}"
+  project_name = var.project_name
+
+  environment = var.environment
+
+  cluster_name = module.ecs.cluster_name
+
+  service_name = module.ecs.service_name
+
+  alarm_email = var.alarm_email
 
 }
+
+
 
 module "autoscaling" {
 
@@ -107,4 +124,11 @@ module "autoscaling" {
 
   max_capacity = var.max_capacity
 
+  cpu_target = var.cpu_target
+
+  memory_target = var.memory_target
+
 }
+
+
+
