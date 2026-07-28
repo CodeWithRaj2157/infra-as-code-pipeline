@@ -827,3 +827,150 @@ jobs:
 # HEALTH CHECK COMPLETE
 # PART E STARTS BELOW
 ##########################################################
+
+##########################################################
+# AUTOMATIC ROLLBACK
+##########################################################
+
+      ####################################################
+      # Rollback Deployment
+      ####################################################
+
+      - name: Rollback Deployment
+
+        if: failure()
+
+        run: |
+
+          echo "Deployment failed."
+
+          echo "Starting rollback..."
+
+          PREVIOUS_TASK=$(cat previous-task.txt)
+
+          echo "Previous Task Definition:"
+
+          echo $PREVIOUS_TASK
+
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --task-definition $PREVIOUS_TASK
+
+      ####################################################
+      # Wait for Rollback
+      ####################################################
+
+      - name: Wait for Rollback
+
+        if: failure()
+
+        run: |
+
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE
+
+##########################################################
+# CLEANUP
+##########################################################
+
+      ####################################################
+      # Remove Temporary Files
+      ####################################################
+
+      - name: Cleanup Workspace
+
+        if: always()
+
+        run: |
+
+          rm -f previous-task.txt
+
+          rm -f image.txt
+
+          docker image prune -af || true
+
+##########################################################
+# JOB SUMMARY
+##########################################################
+
+      ####################################################
+      # Success Summary
+      ####################################################
+
+      - name: Success Summary
+
+        if: success()
+
+        run: |
+
+          echo "=========================================="
+
+          echo "Deployment Successful"
+
+          echo ""
+
+          echo "Project        : Infra as Code Pipeline"
+
+          echo "Environment    : Production"
+
+          echo "AWS Region     : $AWS_REGION"
+
+          echo "Cluster        : $ECS_CLUSTER"
+
+          echo "Service        : $ECS_SERVICE"
+
+          echo "Repository     : $ECR_REPOSITORY"
+
+          echo "Commit SHA     : ${{ github.sha }}"
+
+          echo "=========================================="
+
+##########################################################
+# FAILURE SUMMARY
+##########################################################
+
+      ####################################################
+      # Failure Summary
+      ####################################################
+
+      - name: Failure Summary
+
+        if: failure()
+
+        run: |
+
+          echo "=========================================="
+
+          echo "Deployment Failed"
+
+          echo ""
+
+          echo "Rollback Executed"
+
+          echo ""
+
+          echo "Cluster     : $ECS_CLUSTER"
+
+          echo "Service     : $ECS_SERVICE"
+
+          echo "Repository  : $ECR_REPOSITORY"
+
+          echo "Commit SHA  : ${{ github.sha }}"
+
+          echo ""
+
+          echo "Please check ECS Events"
+
+          echo "CloudWatch Logs"
+
+          echo "Target Group Health"
+
+          echo "GitHub Actions Logs"
+
+          echo "=========================================="
+
+##########################################################
+# END OF FILE
+##########################################################
