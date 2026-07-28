@@ -683,3 +683,147 @@ jobs:
 ##########################################################
 # PART D STARTS BELOW
 ##########################################################
+
+##########################################################
+# PRODUCTION DEPLOYMENT
+##########################################################
+
+  deploy-production:
+
+    name: Deploy to Production
+
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    needs:
+      - docker-build
+
+    runs-on: ubuntu-latest
+
+    ####################################################
+    # GitHub Environment
+    # Configure "production" environment in GitHub
+    # with Required Reviewers enabled.
+    ####################################################
+
+    environment:
+      name: production
+
+    steps:
+
+      ####################################################
+      # Checkout Repository
+      ####################################################
+
+      - name: Checkout Repository
+
+        uses: actions/checkout@v4
+
+      ####################################################
+      # Configure AWS Credentials
+      ####################################################
+
+      - name: Configure AWS Credentials
+
+        uses: aws-actions/configure-aws-credentials@v4
+
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      ####################################################
+      # Save Current Task Definition
+      ####################################################
+
+      - name: Save Current Task Definition
+
+        run: |
+
+          aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE \
+            --query "services[0].taskDefinition" \
+            --output text > previous-task.txt
+
+      ####################################################
+      # Force New Deployment
+      ####################################################
+
+      - name: Deploy Latest Image
+
+        run: |
+
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --force-new-deployment
+
+      ####################################################
+      # Wait Until Stable
+      ####################################################
+
+      - name: Wait For ECS Stability
+
+        run: |
+
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE
+
+      ####################################################
+      # Health Check
+      ####################################################
+
+      - name: Health Check
+
+        run: |
+
+          ALB_URL="http://YOUR-ALB-DNS/health"
+
+          SUCCESS=0
+
+          echo "Waiting for application..."
+
+          for i in {1..10}; do
+
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$ALB_URL")
+
+            echo "Attempt $i : HTTP $STATUS"
+
+            if [ "$STATUS" = "200" ]; then
+              SUCCESS=1
+              break
+            fi
+
+            sleep 30
+
+          done
+
+          if [ "$SUCCESS" = "0" ]; then
+            echo "Health check failed."
+            exit 1
+          fi
+
+          echo "Application Healthy."
+
+      ####################################################
+      # Deployment Summary
+      ####################################################
+
+      - name: Deployment Summary
+
+        if: success()
+
+        run: |
+
+          echo "=================================="
+          echo "Production Deployment Successful"
+          echo "Cluster : $ECS_CLUSTER"
+          echo "Service : $ECS_SERVICE"
+          echo "Region  : $AWS_REGION"
+          echo "=================================="
+
+##########################################################
+# HEALTH CHECK COMPLETE
+# PART E STARTS BELOW
+##########################################################
