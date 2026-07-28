@@ -1,15 +1,19 @@
-name: CI/CD Pipeline - ECS Fargate
+name: Infra as Code Pipeline
 
 on:
+  pull_request:
+    branches:
+      - main
+      - staging
+
   push:
     branches:
       - main
       - staging
 
-  pull_request:
-    branches:
-      - main
-      - staging
+permissions:
+  contents: read
+  id-token: write
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -18,15 +22,19 @@ env:
   ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
   CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
 
+##########################################################
+# JOBS
+##########################################################
+
 jobs:
 
-############################################################
+##########################################################
 # TERRAFORM VALIDATION
-############################################################
+##########################################################
 
   terraform-validation:
 
-    name: Terraform Validation
+    name: Terraform Validate
 
     runs-on: ubuntu-latest
 
@@ -36,16 +44,17 @@ jobs:
 
     steps:
 
-      ######################################################
+      ####################################################
       # Checkout Repository
-      ######################################################
+      ####################################################
 
       - name: Checkout Repository
+
         uses: actions/checkout@v4
 
-      ######################################################
+      ####################################################
       # Configure AWS Credentials
-      ######################################################
+      ####################################################
 
       - name: Configure AWS Credentials
 
@@ -56,9 +65,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      ######################################################
-      # Install Terraform
-      ######################################################
+      ####################################################
+      # Setup Terraform
+      ####################################################
 
       - name: Setup Terraform
 
@@ -67,53 +76,53 @@ jobs:
         with:
           terraform_wrapper: false
 
-      ######################################################
-      # Show Terraform Version
-      ######################################################
+      ####################################################
+      # Terraform Version
+      ####################################################
 
       - name: Terraform Version
 
         run: terraform version
 
-      ######################################################
-      # Initialize Terraform
-      ######################################################
+      ####################################################
+      # Terraform Init
+      ####################################################
 
       - name: Terraform Init
 
         run: terraform init
 
-      ######################################################
+      ####################################################
       # Terraform Format Check
-      ######################################################
+      ####################################################
 
       - name: Terraform Format
 
         run: terraform fmt -check -recursive
 
-      ######################################################
+      ####################################################
       # Terraform Validate
-      ######################################################
+      ####################################################
 
       - name: Terraform Validate
 
         run: terraform validate
 
-      ######################################################
-      # Upload Validation Result
-      ######################################################
+      ####################################################
+      # Upload Terraform Source
+      ####################################################
 
-      - name: Upload Terraform Files
+      - name: Upload Terraform Source
 
         uses: actions/upload-artifact@v4
 
         with:
           name: terraform-source
-          path: terraform/
+          path: terraform
 
-############################################################
-# TFLINT
-############################################################
+##########################################################
+# TERRAFORM LINT
+##########################################################
 
   terraform-lint:
 
@@ -129,49 +138,49 @@ jobs:
 
     steps:
 
-      ######################################################
+      ####################################################
       # Checkout
-      ######################################################
+      ####################################################
 
       - name: Checkout Repository
 
         uses: actions/checkout@v4
 
-      ######################################################
+      ####################################################
       # Install TFLint
-      ######################################################
+      ####################################################
 
       - name: Install TFLint
 
         uses: terraform-linters/setup-tflint@v4
 
-      ######################################################
-      # Verify TFLint
-      ######################################################
+      ####################################################
+      # Verify Version
+      ####################################################
 
-      - name: TFLint Version
+      - name: Check Version
 
         run: tflint --version
 
-      ######################################################
-      # Initialize Plugins
-      ######################################################
+      ####################################################
+      # Initialize Rules
+      ####################################################
 
       - name: Initialize TFLint
 
         run: tflint --init
 
-      ######################################################
-      # Run TFLint
-      ######################################################
+      ####################################################
+      # Execute TFLint
+      ####################################################
 
       - name: Run TFLint
 
         run: tflint
 
-      ######################################################
-      # Upload Report
-      ######################################################
+      ####################################################
+      # Upload Lint Report
+      ####################################################
 
       - name: Upload Lint Report
 
@@ -179,173 +188,8 @@ jobs:
 
         with:
           name: terraform-lint
-          path: terraform/
+          path: terraform
 
-############################################################
-# PART B STARTS HERE
-###########################################################
-
-
-############################################################
-# DOCKER BUILD & PUSH
-############################################################
-
-  docker-build:
-
-    name: Build and Push Docker Image
-
-    needs:
-      - terraform-validation
-      - terraform-lint
-
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: app
-
-    outputs:
-      image-uri: ${{ steps.image.outputs.image }}
-
-    steps:
-
-      ######################################################
-      # Checkout Repository
-      ######################################################
-
-      - name: Checkout Repository
-
-        uses: actions/checkout@v4
-
-      ######################################################
-      # Configure AWS Credentials
-      ######################################################
-
-      - name: Configure AWS Credentials
-
-        uses: aws-actions/configure-aws-credentials@v4
-
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      ######################################################
-      # Login to Amazon ECR
-      ######################################################
-
-      - name: Login to Amazon ECR
-
-        id: login-ecr
-
-        uses: aws-actions/amazon-ecr-login@v2
-
-      ######################################################
-      # Build Docker Image
-      ######################################################
-
-      - name: Build Docker Image
-
-        run: |
-
-          docker build \
-            -t $ECR_REPOSITORY:${{ github.sha }} \
-            .
-
-      ######################################################
-      # Tag Docker Image
-      ######################################################
-
-      - name: Tag Docker Image
-
-        run: |
-
-          docker tag \
-          $ECR_REPOSITORY:${{ github.sha }} \
-          ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
-
-      ######################################################
-      # Push Docker Image
-      ######################################################
-
-      - name: Push Docker Image
-
-        run: |
-
-          docker push \
-          ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
-
-      ######################################################
-      # Save Image URI
-      ######################################################
-
-      - name: Export Image URI
-
-        id: image
-
-        run: |
-
-          IMAGE=${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
-
-          echo "image=$IMAGE" >> $GITHUB_OUTPUT
-
-          echo "Docker Image:"
-          echo "$IMAGE"
-
-      ######################################################
-      # Verify Image Exists
-      ######################################################
-
-      - name: Verify Image in ECR
-
-        run: |
-
-          aws ecr describe-images \
-            --repository-name $ECR_REPOSITORY \
-            --image-ids imageTag=${{ github.sha }}
-
-      ######################################################
-      # Upload Build Information
-      ######################################################
-
-      - name: Upload Image Metadata
-
-        uses: actions/upload-artifact@v4
-
-        with:
-          name: docker-image
-
-          path: |
-            app/Dockerfile
-
-      ######################################################
-      # Download Terraform Artifact
-      ######################################################
-
-      - name: Download Terraform Artifact
-
-        uses: actions/download-artifact@v4
-
-        with:
-          name: terraform-source
-
-      ######################################################
-      # Display Summary
-      ######################################################
-
-      - name: Build Summary
-
-        run: |
-
-          echo "Docker image successfully pushed."
-
-          echo "Repository : $ECR_REPOSITORY"
-
-          echo "Commit     : ${{ github.sha }}"
-
-          echo "AWS Region : $AWS_REGION"
-
-############################################################
-# PART C STARTS HERE
-############################################################
-#
+##########################################################
+# PART B STARTS BELOW
+##########################################################
