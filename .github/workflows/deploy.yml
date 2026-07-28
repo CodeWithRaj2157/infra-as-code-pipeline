@@ -548,3 +548,138 @@ jobs:
 ##########################################################
 # PART C STARTS BELOW
 ##########################################################
+
+
+##########################################################
+# ECS STAGING DEPLOYMENT
+##########################################################
+
+  deploy-staging:
+
+    name: Deploy to Staging
+
+    if: github.event_name == 'pull_request'
+
+    needs:
+      - docker-build
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: staging
+
+    steps:
+
+      ####################################################
+      # Checkout Repository
+      ####################################################
+
+      - name: Checkout Repository
+
+        uses: actions/checkout@v4
+
+      ####################################################
+      # Configure AWS Credentials
+      ####################################################
+
+      - name: Configure AWS Credentials
+
+        uses: aws-actions/configure-aws-credentials@v4
+
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      ####################################################
+      # Save Previous Task Definition
+      ####################################################
+
+      - name: Save Previous Task Definition
+
+        run: |
+
+          aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE \
+            --query "services[0].taskDefinition" \
+            --output text > previous-task.txt
+
+      ####################################################
+      # Show Previous Task Definition
+      ####################################################
+
+      - name: Previous Task Definition
+
+        run: |
+
+          cat previous-task.txt
+
+      ####################################################
+      # Force New Deployment
+      ####################################################
+
+      - name: Deploy Application
+
+        run: |
+
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --force-new-deployment
+
+      ####################################################
+      # Wait Until ECS Service Stable
+      ####################################################
+
+      - name: Wait for Stable Service
+
+        run: |
+
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE
+
+      ####################################################
+      # Verify Running Tasks
+      ####################################################
+
+      - name: Verify Running Tasks
+
+        run: |
+
+          aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE
+
+      ####################################################
+      # Upload Previous Task Definition
+      ####################################################
+
+      - name: Upload Previous Task Definition
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: previous-task
+
+          path: previous-task.txt
+
+      ####################################################
+      # Deployment Summary
+      ####################################################
+
+      - name: Deployment Summary
+
+        run: |
+
+          echo "===================================="
+          echo "Staging Deployment Completed"
+          echo "Cluster : $ECS_CLUSTER"
+          echo "Service : $ECS_SERVICE"
+          echo "Region  : $AWS_REGION"
+          echo "===================================="
+
+##########################################################
+# PART D STARTS BELOW
+##########################################################
