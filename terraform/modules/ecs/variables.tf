@@ -51,3 +51,32 @@ variable "log_retention_days" {
   type    = number
   default = 7
 }
+
+
+
+############################################
+# ECS Service Configuration
+############################################
+
+variable "subnet_ids" {
+  description = "Private subnet IDs"
+  type        = list(string)
+}
+
+variable "security_group_id" {
+  description = "ECS Security Group ID"
+  type        = string
+}
+
+variable "target_group_arn" {
+  description = "ALB Target Group ARN"
+  type        = string
+}
+
+variable "desired_count" {
+  description = "Number of ECS tasks"
+  type        = number
+  default     = 2
+}
+
+

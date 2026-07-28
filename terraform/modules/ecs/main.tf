@@ -65,5 +65,52 @@ resource "aws_ecs_task_definition" "this" {
       region         = "ap-south-1"
     }
   )
+}
+
+
+####################################
+# ECS Service
+####################################
+
+resource "aws_ecs_service" "this" {
+
+  name            = "${var.cluster_name}-service"
+
+  cluster         = aws_ecs_cluster.this.id
+
+  task_definition = aws_ecs_task_definition.this.arn
+
+  desired_count   = var.desired_count
+
+  launch_type     = "FARGATE"
+
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 200
+
+  network_configuration {
+
+    assign_public_ip = false
+
+    security_groups = [
+      var.security_group_id
+    ]
+
+    subnets = var.subnet_ids
+
+  }
+
+  load_balancer {
+
+    target_group_arn = var.target_group_arn
+
+    container_name = var.container_name
+
+    container_port = var.container_port
+
+  }
+
+  depends_on = [
+    aws_ecs_task_definition.this
+  ]
 
 }
