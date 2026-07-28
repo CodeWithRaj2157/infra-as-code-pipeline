@@ -1,4 +1,4 @@
-name: ECS CI/CD Pipeline
+name: CI/CD Pipeline - ECS Fargate
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
   pull_request:
     branches:
+      - main
       - staging
 
 env:
@@ -19,7 +20,13 @@ env:
 
 jobs:
 
-  validate:
+############################################################
+# TERRAFORM VALIDATION
+############################################################
+
+  terraform-validation:
+
+    name: Terraform Validation
 
     runs-on: ubuntu-latest
 
@@ -29,116 +36,151 @@ jobs:
 
     steps:
 
+      ######################################################
+      # Checkout Repository
+      ######################################################
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      ######################################################
+      # Configure AWS Credentials
+      ######################################################
+
       - name: Configure AWS Credentials
+
         uses: aws-actions/configure-aws-credentials@v4
+
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      ######################################################
+      # Install Terraform
+      ######################################################
+
       - name: Setup Terraform
+
         uses: hashicorp/setup-terraform@v3
 
+        with:
+          terraform_wrapper: false
+
+      ######################################################
+      # Show Terraform Version
+      ######################################################
+
+      - name: Terraform Version
+
+        run: terraform version
+
+      ######################################################
+      # Initialize Terraform
+      ######################################################
+
       - name: Terraform Init
+
         run: terraform init
 
-      - name: Terraform Format Check
+      ######################################################
+      # Terraform Format Check
+      ######################################################
+
+      - name: Terraform Format
+
         run: terraform fmt -check -recursive
 
+      ######################################################
+      # Terraform Validate
+      ######################################################
+
       - name: Terraform Validate
+
         run: terraform validate
 
-      - name: Install TFLint
-        uses: terraform-linters/setup-tflint@v4
+      ######################################################
+      # Upload Validation Result
+      ######################################################
 
-      - name: Initialize TFLint
-        run: tflint --init
+      - name: Upload Terraform Files
 
-      - name: Run TFLint
-        run: tflint
+        uses: actions/upload-artifact@v4
 
-  docker:
+        with:
+          name: terraform-source
+          path: terraform/
 
-    needs: validate
+############################################################
+# TFLINT
+############################################################
+
+  terraform-lint:
+
+    name: Terraform Lint
+
+    needs: terraform-validation
 
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: app
-
-    outputs:
-      image: ${{ steps.build.outputs.image }}
+        working-directory: terraform
 
     steps:
 
-      - uses: actions/checkout@v4
+      ######################################################
+      # Checkout
+      ######################################################
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Checkout Repository
+
+        uses: actions/checkout@v4
+
+      ######################################################
+      # Install TFLint
+      ######################################################
+
+      - name: Install TFLint
+
+        uses: terraform-linters/setup-tflint@v4
+
+      ######################################################
+      # Verify TFLint
+      ######################################################
+
+      - name: TFLint Version
+
+        run: tflint --version
+
+      ######################################################
+      # Initialize Plugins
+      ######################################################
+
+      - name: Initialize TFLint
+
+        run: tflint --init
+
+      ######################################################
+      # Run TFLint
+      ######################################################
+
+      - name: Run TFLint
+
+        run: tflint
+
+      ######################################################
+      # Upload Report
+      ######################################################
+
+      - name: Upload Lint Report
+
+        uses: actions/upload-artifact@v4
+
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          name: terraform-lint
+          path: terraform/
 
-      - name: Login to Amazon ECR
-        id: login
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build Docker Image
-        id: build
-        run: |
-          docker build -t $ECR_REPOSITORY:${{ github.sha }} .
-          docker tag $ECR_REPOSITORY:${{ github.sha }} \
-          ${{ steps.login.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
-
-          echo "image=${{ steps.login.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}" >> $GITHUB_OUTPUT
-
-      - name: Push Image
-        run: |
-          docker push \
-          ${{ steps.login.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}
-
-  deploy:
-
-    needs: docker
-
-    runs-on: ubuntu-latest
-
-    environment:
-      name: staging
-
-    steps:
-
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Deploy ECS Service
-
-        run: |
-
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
-            --force-new-deployment
-
-      - name: Wait for Deployment
-
-        run: |
-
-          aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE
-
-      - name: Deployment Successful
-
-        run: echo "Application deployed successfully."
+############################################################
+# PART B STARTS HERE
+############################################################
