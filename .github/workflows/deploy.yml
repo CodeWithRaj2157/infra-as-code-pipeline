@@ -411,6 +411,13 @@ jobs:
             --task-definition infra-as-code-pipeline-dev-task \
             > task-definition.json
 
+            
+      - name: Debug Deployment Image
+        run: |
+          echo "Image from docker-build job:"
+          echo "${{ needs.docker-build.outputs.image-uri }}"
+
+        
       ####################################################
       # Render Updated Task Definition
       ####################################################
