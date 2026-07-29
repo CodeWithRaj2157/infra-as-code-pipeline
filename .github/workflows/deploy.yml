@@ -396,7 +396,6 @@ jobs:
         run: |
           aws ecs describe-task-definition \
             --task-definition infra-as-code-pipeline-dev-task \
-            --query taskDefinition \
             > task-definition.json
 
       ####################################################
@@ -408,8 +407,8 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-definition.json
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          container-name: app
+          image: ${{ needs.docker-build.outputs.image-uri }}
 
       ####################################################
       # Deploy Updated Task Definition
